@@ -1,9 +1,13 @@
 var babel = require('babel-core');
 var babylon = require('babylon');
-var miplugin = require('./dist/miplugin');
-var code ="c=>c.description === description";
+var linq = require('./dist/index');
+var code =`(function (description) {
+    const instance = new Context();
+    var z = instance.Foo
+        .where((c) => c.description === description && c.id === 12)
+})("Hello")`;
 var ast = babylon.parse(code);
 var out = babel.transformFromAst(ast,code, {
-    plugins: [miplugin]
+    plugins: [linq]
 });
 console.log(out.code);
