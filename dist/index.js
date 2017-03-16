@@ -1,6 +1,11 @@
 'use strict';
 
-// import * as WhereTransformer from './wheretransformer'
+var _wheretransformer = require('./wheretransformer');
+
+var _wheretransformer2 = _interopRequireDefault(_wheretransformer);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 module.exports = function (_ref) {
     var t = _ref.types;
 
@@ -11,14 +16,9 @@ module.exports = function (_ref) {
                 var node = path.node;
 
                 if (node[VISITED] || !parentIsWhere(path)) return;
-                //let Constructor = WhereTransformer;
+                var Transformer = _wheretransformer2.default;
                 node[VISITED] = true;
-                // path.replaceWith(new constructor(node.body, node.params, state.file).run());
-                var be = t.BlockStatement([t.variableDeclaration('let', [t.variableDeclarator(t.Identifier('_booleanExpression'), t.NewExpression(t.Identifier('BooleanExpression'), []))])]);
-                var fe = t.FunctionExpression(null, [t.Identifier('p1'), t.Identifier('p2')], be);
-                var ce = t.CallExpression(fe, [t.Identifier('param1'), t.NumericLiteral(13)]);
-
-                path.replaceWith(t.ExpressionStatement(ce));
+                path.replaceWith(new Transformer(path, node.params, state.file).run());
             }
         }
     };
