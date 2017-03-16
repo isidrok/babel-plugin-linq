@@ -7,7 +7,7 @@ module.exports = function ({ types: t }) {
                 const { node } = path;
                 if (!parentIsWhere(path)) return;
                 let Transformer = WhereTransformer;
-                node[VALID] = true;
+                node.body[VALID] = true;
                 path.replaceWith(new Transformer(path, node.params, state.file).run());
              }
         }

@@ -36,6 +36,8 @@ var WhereTransformer = function () {
         this.body = path.node.body;
         this.file = file;
         this.params = [];
+        this.expressionStart = path.node.start;
+        this.expressionEnd = path.node.end;
     }
 
     _createClass(WhereTransformer, [{
@@ -51,7 +53,7 @@ var WhereTransformer = function () {
         value: function paramsBooleanExpression(param) {
             var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
             var key = Object.keys(param)[0];
-            var params = [t.StringLiteral(key), t.Identifier(param[key])];
+            var params = [t.StringLiteral(key), t.Identifier(key)];
             var callExpression = t.CallExpression(memberExpression, params);
             var expressionStatement = t.ExpressionStatement(callExpression);
             return expressionStatement;
@@ -77,6 +79,53 @@ var WhereTransformer = function () {
             return paramExpressions;
         }
     }, {
+        key: 'buildBlockStatement',
+        value: function buildBlockStatement() {
+            var newStatement = this.newBooleanExpression();
+            var paramExpressions = this.buildAllParamsExpressions();
+            var expression = this.file.code.substring(this.expressionStart, this.expressionEnd + 1);
+            var expressionStatement = this.setBooleanExpression(expression);
+            var code = [newStatement];
+            paramExpressions.forEach(function (expression) {
+                code.push(expression);
+            });
+            code.push(expressionStatement);
+            var blockStatement = t.blockStatement(code);
+            return blockStatement;
+        }
+    }, {
+        key: 'buildFunction',
+        value: function buildFunction() {
+            var functionId = null;
+            var functionBody = this.buildBlockStatement();
+            var functionParams = [];
+            this.params.forEach(function (param) {
+                var key = Object.keys(param)[0];
+                functionParams.push(t.Identifier(key));
+            });
+            var functionExpression = t.functionExpression(functionId, functionParams, functionBody);
+            return functionExpression;
+        }
+    }, {
+        key: 'buildFunctionCall',
+        value: function buildFunctionCall() {
+            var functionExpression = this.buildFunction();
+            var callParams = [];
+            this.params.forEach(function (param) {
+                var key = Object.keys(param)[0];
+                var _param = void 0;
+                if (param.isIdentifier) _param = t.Identifier(param[key]);else _param = getParam(param[key]);
+                callParams.push(_param);
+            });
+            var callExpression = t.callExpression(functionExpression, callParams);
+            return t.expressionStatement(callExpression);
+
+            function getParam(param) {
+                if (typeof param === "number") return t.NumericLiteral(param);
+                if (typeof param === "string") return t.StringLiteral(param);
+            }
+        }
+    }, {
         key: 'traverseAST',
         value: function traverseAST() {
             var counter = 0;
@@ -91,10 +140,13 @@ var WhereTransformer = function () {
                 node.left[_valid2.default] = true;
             };
             function handleNode(node) {
+                
                 if (t.isMemberExpression(node)) return;
                 var _name = name();
                 if (t.isIdentifier(node)) {
-                    _this.params.push(_defineProperty({}, _name, node.name));
+                    var _this$params$push;
+
+                    _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, _name, node.name), _defineProperty(_this$params$push, 'isIdentifier', true), _this$params$push));
                     node.name = _name;
                 } else {
                     _this.params.push(_defineProperty({}, _name, node.value));
@@ -107,7 +159,6 @@ var WhereTransformer = function () {
                 ArrowFunctionExpression: function ArrowFunctionExpression(path, state) {
                     var node = path.node;
 
-                    node.body[_valid2.default] = true;
                     if (!node.body[_valid2.default]) return;
                     if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body)) throw new SyntaxError('Invalid arrow function expression');
                 },
@@ -145,15 +196,7 @@ var WhereTransformer = function () {
         key: 'run',
         value: function run() {
             this.traverseAST();
-            var newStatement = this.newBooleanExpression();
-            var paramExpressions = this.buildAllParamsExpressions();
-            var expressionStatement = this.setBooleanExpression('expression');
-            var code = [newStatement];
-            paramExpressions.forEach(function (expression) {
-                code.push(expression);
-            });
-            code.push(expressionStatement);
-            return t.blockStatement(code, ["a"]);
+            return this.buildFunctionCall();
         }
     }]);
 

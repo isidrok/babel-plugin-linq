@@ -11,6 +11,8 @@ export default class WhereTransformer {
         this.body = path.node.body;
         this.file = file;
         this.params = [];
+        this.expressionStart = path.node.start;
+        this.expressionEnd = path.node.end;
     }
     newBooleanExpression() {
         let expression = t.NewExpression(t.Identifier('BooleanExpression'), []);
@@ -24,7 +26,7 @@ export default class WhereTransformer {
             t.Identifier('params')
         );
         let key = Object.keys(param)[0];
-        let params = [t.StringLiteral(key), t.Identifier(param[key])];
+        let params = [t.StringLiteral(key), t.Identifier(key)];
         let callExpression = t.CallExpression(memberExpression, params);
         let expressionStatement = t.ExpressionStatement(callExpression);
         return expressionStatement;
@@ -46,24 +48,70 @@ export default class WhereTransformer {
         });
         return paramExpressions;
     }
+    buildBlockStatement() {
+        let newStatement = this.newBooleanExpression();
+        let paramExpressions = this.buildAllParamsExpressions();
+        let expression = this.file.code.substring(this.expressionStart,this.expressionEnd+1);
+        let expressionStatement = this.setBooleanExpression(expression);
+        let code = [newStatement];
+        paramExpressions.forEach(expression => {
+            code.push(expression);
+        });
+        code.push(expressionStatement)
+        let blockStatement = t.blockStatement(code);
+        return blockStatement;
+    }
+    buildFunction() {
+        let functionId = null;
+        let functionBody = this.buildBlockStatement();
+        let functionParams = [];
+        this.params.forEach(param => {
+            let key = Object.keys(param)[0];
+            functionParams.push(t.Identifier(key));
+        });
+        let functionExpression = t.functionExpression(functionId, functionParams, functionBody);
+        return functionExpression;
+    }
+    buildFunctionCall() {
+        let functionExpression = this.buildFunction();
+        let callParams = [];
+        this.params.forEach(param => {
+            let key = Object.keys(param)[0];
+            let _param
+            if(param.isIdentifier)
+                _param = t.Identifier(param[key]);
+            else
+                _param = getParam(param[key]);
+            callParams.push(_param);
+        });
+        let callExpression = t.callExpression(functionExpression, callParams);
+        return t.expressionStatement(callExpression);
+
+        function getParam(param) {
+            if (typeof param === "number")
+                return t.NumericLiteral(param);
+            if (typeof param === "string")
+                return t.StringLiteral(param);
+        }
+    }
 
     traverseAST() {
         let counter = 0;
-        let _this = this;      
+        let _this = this;
         function name() {
             let name = `p${counter}`;
             counter++;
             return name;
         }
-        function flagChildernAsValid(node){
+        function flagChildernAsValid(node) {
             node.right[VALID] = true;
             node.left[VALID] = true;
         };
         function handleNode(node) {
-            if(t.isMemberExpression(node)) return;
+            if (t.isMemberExpression(node)) return;
             let _name = name();
             if (t.isIdentifier(node)) {
-                _this.params.push({ [_name]: node.name });
+                _this.params.push({ [_name]: node.name , isIdentifier:true });
                 node.name = _name;
             }
             else {
@@ -76,14 +124,14 @@ export default class WhereTransformer {
 
             ArrowFunctionExpression(path, state) {
                 const { node } = path;
-                node.body[VALID] = true;
-                if(!node.body[VALID]) return;
+                if (!node.body[VALID]) return;
                 if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body))
                     throw new SyntaxError('Invalid arrow function expression');
+                
             },
             LogicalExpression(path, left, right) {
                 const { node } = path;
-                if(!node[VALID]) return;
+                if (!node[VALID]) return;
                 if (!t.isBinaryExpression(node.left) || !t.isBinaryExpression(node.right)) {
                     throw new SyntaxError('Invalid logical expression');
                 }
@@ -113,14 +161,6 @@ export default class WhereTransformer {
 
     run() {
         this.traverseAST();
-        let newStatement = this.newBooleanExpression();
-        let paramExpressions = this.buildAllParamsExpressions();
-        let expressionStatement = this.setBooleanExpression('expression');
-        let code = [newStatement];
-        paramExpressions.forEach(expression =>{
-            code.push(expression);
-        });
-        code.push(expressionStatement)
-        return t.blockStatement(code);
+        return this.buildFunctionCall();
     }
 }

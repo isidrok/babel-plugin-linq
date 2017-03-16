@@ -20,7 +20,7 @@ module.exports = function (_ref) {
 
                 if (!parentIsWhere(path)) return;
                 var Transformer = _wheretransformer2.default;
-                node[_valid2.default] = true;
+                node.body[_valid2.default] = true;
                 path.replaceWith(new Transformer(path, node.params, state.file).run());
             }
         }
