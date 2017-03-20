@@ -6,9 +6,11 @@ module.exports = function ({ types: t }) {
             ArrowFunctionExpression(path, state) {
                 const { node } = path;
                 if (!parentIsWhere(path)) return;
+                if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body))
+                    throw new SyntaxError('Invalid arrow function expression');
                 let Transformer = WhereTransformer;
                 node.body[VALID] = true;
-                path.replaceWith(new Transformer(path, node.params, state.file).run());
+                path.replaceWith(new Transformer(path,state).run());
              }
         }
     }

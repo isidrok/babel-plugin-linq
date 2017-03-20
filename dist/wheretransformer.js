@@ -27,30 +27,28 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var WhereTransformer = function () {
-    function WhereTransformer(path, params, file) {
+    function WhereTransformer(path, state) {
         _classCallCheck(this, WhereTransformer);
 
-        if (params.length != 1) throw new SyntaxError('Invalid arrow function');
-        this.id = params[0].name;
+        var _params = path.node.params;
+        if (_params.length != 1) throw new SyntaxError('Invalid arrow function');
+        this.id = _params[0].name;
         this.path = path;
-        this.body = path.node.body;
-        this.file = file;
+        this.state = state;
         this.params = [];
-        this.expressionStart = path.node.start;
-        this.expressionEnd = path.node.end;
     }
 
     _createClass(WhereTransformer, [{
-        key: 'newBooleanExpression',
-        value: function newBooleanExpression() {
+        key: 'buildBoolean',
+        value: function buildBoolean() {
             var expression = t.NewExpression(t.Identifier('BooleanExpression'), []);
             var variableDeclarator = t.variableDeclarator(t.Identifier('_booleanExpression'), expression);
             var variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
             return variableDeclaration;
         }
     }, {
-        key: 'paramsBooleanExpression',
-        value: function paramsBooleanExpression(param) {
+        key: 'buildParam',
+        value: function buildParam(param) {
             var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
             var key = Object.keys(param)[0];
             var params = [t.StringLiteral(key), t.Identifier(key)];
@@ -59,8 +57,8 @@ var WhereTransformer = function () {
             return expressionStatement;
         }
     }, {
-        key: 'setBooleanExpression',
-        value: function setBooleanExpression(_expression) {
+        key: 'buildExpression',
+        value: function buildExpression(_expression) {
             var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('expression'));
             var expression = t.StringLiteral(_expression);
             var assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
@@ -68,23 +66,23 @@ var WhereTransformer = function () {
             return expressionStatement;
         }
     }, {
-        key: 'buildAllParamsExpressions',
-        value: function buildAllParamsExpressions() {
+        key: 'buildAllParams',
+        value: function buildAllParams() {
             var _this2 = this;
 
             var paramExpressions = [];
             this.params.forEach(function (param) {
-                paramExpressions.push(_this2.paramsBooleanExpression(param));
+                paramExpressions.push(_this2.buildParam(param));
             });
             return paramExpressions;
         }
     }, {
         key: 'buildBlockStatement',
         value: function buildBlockStatement() {
-            var newStatement = this.newBooleanExpression();
-            var paramExpressions = this.buildAllParamsExpressions();
-            var expression = this.file.code.substring(this.expressionStart, this.expressionEnd + 1);
-            var expressionStatement = this.setBooleanExpression(expression);
+            var newStatement = this.buildBoolean();
+            var paramExpressions = this.buildAllParams();
+            var expression = 'TODO: build the expression correctly';
+            var expressionStatement = this.buildExpression(expression);
             var code = [newStatement];
             paramExpressions.forEach(function (expression) {
                 code.push(expression);
@@ -128,69 +126,75 @@ var WhereTransformer = function () {
     }, {
         key: 'traverseAST',
         value: function traverseAST() {
-            var counter = 0;
+            var paramCounter = 0;
+            var count = 0;
             var _this = this;
+
             function name() {
-                var name = 'p' + counter;
-                counter++;
+                var name = 'p' + paramCounter;
+                paramCounter++;
                 return name;
             }
+
             function flagChildernAsValid(node) {
                 node.right[_valid2.default] = true;
                 node.left[_valid2.default] = true;
-            };
-            function handleNode(node) {
-                
-                if (t.isMemberExpression(node)) return;
+            }
+
+            function handleTerminalNode(node) {
+                console.log('node: ', node.type, 'order: ', ++count, '\n');
+                if (t.isMemberExpression(node)) {
+                    if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
+                    return;
+                }
+
                 var _name = name();
                 if (t.isIdentifier(node)) {
                     var _this$params$push;
 
                     _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, _name, node.name), _defineProperty(_this$params$push, 'isIdentifier', true), _this$params$push));
                     node.name = _name;
-                } else {
-                    _this.params.push(_defineProperty({}, _name, node.value));
+                } else _this.params.push(_defineProperty({}, _name, node.value));{
                     node.value = _name;
                 }
             }
-            (0, _babelTraverse2.default)(this.path.parent, {
-                noScope: true,
+            function isValidLogicalExpression(node) {
+                var lhs = node.left;
+                var rhs = node.right;
+                return t.isLogicalExpression(lhs) && t.isLogicalExpression(rhs) || t.isBinaryExpression(lhs) && t.isBinaryExpression(rhs) || t.isBinaryExpression(lhs) && t.isLogicalExpression(rhs) || t.isLogicalExpression(lhs) && t.isBinaryExpression(rhs);
+            }
+            function isValidBinaryExpression(node) {
+                var lhs = node.left;
+                var rhs = node.right;
+                return t.isMemberExpression(lhs) && (t.isIdentifier(rhs) || t.isNumericLiteral(rhs) || t.isStringLiteral(rhs)) || (t.isIdentifier(lhs) || t.isNumericLiteral(lhs) || t.isStringLiteral(lhs)) && t.isMemberExpression(rhs);
+            }
 
-                ArrowFunctionExpression: function ArrowFunctionExpression(path, state) {
-                    var node = path.node;
-
-                    if (!node.body[_valid2.default]) return;
-                    if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body)) throw new SyntaxError('Invalid arrow function expression');
-                },
+            (0, _babelTraverse2.default)(this.path.node, {
                 LogicalExpression: function LogicalExpression(path, left, right) {
                     var node = path.node;
 
                     if (!node[_valid2.default]) return;
-                    if (!t.isBinaryExpression(node.left) || !t.isBinaryExpression(node.right)) {
+                    if (!isValidLogicalExpression(node)) {
                         throw new SyntaxError('Invalid logical expression');
                     }
                     flagChildernAsValid(node);
+                    console.log('node: ', node.operator, 'order: ', ++count, '\n');
                 },
                 BinaryExpression: function BinaryExpression(path, left, right) {
                     var node = path.node;
 
                     if (!node[_valid2.default]) return;
-                    var lhs = node.left;
-                    var rhs = node.right;
-                    if (!t.isMemberExpression(lhs) && !t.isMemberExpression(rhs)) {
+                    if (!isValidBinaryExpression(node)) {
                         throw new SyntaxError('Invalid binary expression');
                     }
+                    var lhs = node.left;
+                    var rhs = node.right;
                     flagChildernAsValid(node);
-                    handleNode(lhs);
-                    handleNode(rhs);
-                },
-                MemberExpression: function MemberExpression(path) {
-                    var node = path.node;
-
-                    if (!node[_valid2.default]) return;
-                    if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
+                    console.log('node: ', node.operator, 'order: ', ++count, '\n');
+                    handleTerminalNode(lhs);
+                    handleTerminalNode(rhs);
                 }
-            });
+            }, this.path.scope, this.path);
         }
     }, {
         key: 'run',

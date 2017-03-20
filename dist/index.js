@@ -19,9 +19,10 @@ module.exports = function (_ref) {
                 var node = path.node;
 
                 if (!parentIsWhere(path)) return;
+                if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body)) throw new SyntaxError('Invalid arrow function expression');
                 var Transformer = _wheretransformer2.default;
                 node.body[_valid2.default] = true;
-                path.replaceWith(new Transformer(path, node.params, state.file).run());
+                path.replaceWith(new Transformer(path, state).run());
             }
         }
     };
