@@ -22,7 +22,7 @@ module.exports = function (_ref) {
                 if (!t.isLogicalExpression(node.body) && !t.isBinaryExpression(node.body)) throw new SyntaxError('Invalid arrow function expression');
                 var Transformer = _wheretransformer2.default;
                 node.body[_valid2.default] = true;
-                path.replaceWith(new Transformer(path, state).run());
+                path.replaceWith(new Transformer(path, state.file.code).run());
             }
         }
     };

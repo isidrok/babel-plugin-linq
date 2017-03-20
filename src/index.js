@@ -10,7 +10,7 @@ module.exports = function ({ types: t }) {
                     throw new SyntaxError('Invalid arrow function expression');
                 let Transformer = WhereTransformer;
                 node.body[VALID] = true;
-                path.replaceWith(new Transformer(path,state).run());
+                path.replaceWith(new Transformer(path,state.file.code).run());
              }
         }
     }

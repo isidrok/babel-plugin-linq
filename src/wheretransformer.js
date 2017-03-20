@@ -3,13 +3,15 @@ import * as t from 'babel-types';
 import VALID from './valid'
 
 export default class WhereTransformer {
-    constructor(path, state) {
+    constructor(path, code) {
         let _params = path.node.params;
         if (_params.length != 1)
             throw new SyntaxError('Invalid arrow function');
+        let expressionStart = path.node.start;
+        let expressionEnd = path.node.end;
+        this.expression = code.substring(expressionStart,expressionEnd +1);
         this.id = _params[0].name;
         this.path = path;
-        this.state = state;
         this.params = [];
     }
     buildBoolean() {
@@ -29,7 +31,7 @@ export default class WhereTransformer {
         let expressionStatement = t.ExpressionStatement(callExpression);
         return expressionStatement;
     }
-    buildExpression(_expression) {
+    buildExpressionAssignment(_expression) {
         let memberExpression = t.MemberExpression(
             t.Identifier('_booleanExpression'),
             t.Identifier('expression')
@@ -49,8 +51,7 @@ export default class WhereTransformer {
     buildBlockStatement() {
         let newStatement = this.buildBoolean();
         let paramExpressions = this.buildAllParams();
-        let expression = 'TODO: build the expression correctly';
-        let expressionStatement = this.buildExpression(expression);
+        let expressionStatement = this.buildExpressionAssignment(this.expression);
         let code = [newStatement];
         paramExpressions.forEach(expression => {
             code.push(expression);
@@ -58,6 +59,15 @@ export default class WhereTransformer {
         code.push(expressionStatement)
         let blockStatement = t.blockStatement(code);
         return blockStatement;
+    }
+    buildExpression(){
+        let regex;
+        this.params.forEach(param => {
+            let key = Object.keys(param)[0];
+            regex = new RegExp(`([^.|w|d])${param[key]}(?!S)`, 'g');
+            this.expression = this.expression.replace(regex,`$1${key}`);
+        });
+        this.expression = this.expression.replace(/["']/g, "");
     }
     buildFunction() {
         let functionId = null;
@@ -110,6 +120,7 @@ export default class WhereTransformer {
         }
 
         function handleTerminalNode(node) {
+            //TODO refactor
             if (t.isMemberExpression(node)) {
                 if (node.object.name != _this.id)
                     throw new SyntaxError('Invalid member expression');
@@ -172,6 +183,7 @@ export default class WhereTransformer {
     }
     run() {
         this.traverseAST();
+        this.buildExpression();
         return this.buildFunctionCall();
     }
 }

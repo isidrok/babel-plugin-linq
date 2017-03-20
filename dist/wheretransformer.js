@@ -27,14 +27,16 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var WhereTransformer = function () {
-    function WhereTransformer(path, state) {
+    function WhereTransformer(path, code) {
         _classCallCheck(this, WhereTransformer);
 
         var _params = path.node.params;
         if (_params.length != 1) throw new SyntaxError('Invalid arrow function');
+        var expressionStart = path.node.start;
+        var expressionEnd = path.node.end;
+        this.expression = code.substring(expressionStart, expressionEnd + 1);
         this.id = _params[0].name;
         this.path = path;
-        this.state = state;
         this.params = [];
     }
 
@@ -57,8 +59,8 @@ var WhereTransformer = function () {
             return expressionStatement;
         }
     }, {
-        key: 'buildExpression',
-        value: function buildExpression(_expression) {
+        key: 'buildExpressionAssignment',
+        value: function buildExpressionAssignment(_expression) {
             var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('expression'));
             var expression = t.StringLiteral(_expression);
             var assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
@@ -81,8 +83,7 @@ var WhereTransformer = function () {
         value: function buildBlockStatement() {
             var newStatement = this.buildBoolean();
             var paramExpressions = this.buildAllParams();
-            var expression = 'TODO: build the expression correctly';
-            var expressionStatement = this.buildExpression(expression);
+            var expressionStatement = this.buildExpressionAssignment(this.expression);
             var code = [newStatement];
             paramExpressions.forEach(function (expression) {
                 code.push(expression);
@@ -90,6 +91,19 @@ var WhereTransformer = function () {
             code.push(expressionStatement);
             var blockStatement = t.blockStatement(code);
             return blockStatement;
+        }
+    }, {
+        key: 'buildExpression',
+        value: function buildExpression() {
+            var _this3 = this;
+
+            var regex = void 0;
+            this.params.forEach(function (param) {
+                var key = Object.keys(param)[0];
+                regex = new RegExp('([^.|w|d])' + param[key] + '(?!S)', 'g');
+                _this3.expression = _this3.expression.replace(regex, '$1' + key);
+            });
+            this.expression = this.expression.replace(/["']/g, "");
         }
     }, {
         key: 'buildFunction',
@@ -142,7 +156,6 @@ var WhereTransformer = function () {
             }
 
             function handleTerminalNode(node) {
-                console.log('node: ', node.type, 'order: ', ++count, '\n');
                 if (t.isMemberExpression(node)) {
                     if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
                     return;
@@ -178,7 +191,6 @@ var WhereTransformer = function () {
                         throw new SyntaxError('Invalid logical expression');
                     }
                     flagChildernAsValid(node);
-                    console.log('node: ', node.operator, 'order: ', ++count, '\n');
                 },
                 BinaryExpression: function BinaryExpression(path, left, right) {
                     var node = path.node;
@@ -190,7 +202,6 @@ var WhereTransformer = function () {
                     var lhs = node.left;
                     var rhs = node.right;
                     flagChildernAsValid(node);
-                    console.log('node: ', node.operator, 'order: ', ++count, '\n');
                     handleTerminalNode(lhs);
                     handleTerminalNode(rhs);
                 }
@@ -200,6 +211,7 @@ var WhereTransformer = function () {
         key: 'run',
         value: function run() {
             this.traverseAST();
+            this.buildExpression();
             return this.buildFunctionCall();
         }
     }]);
