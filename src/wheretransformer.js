@@ -110,7 +110,6 @@ export default class WhereTransformer {
         }
 
         function handleTerminalNode(node) {
-            console.log('node: ', node.type, 'order: ', ++count, '\n');
             if (t.isMemberExpression(node)) {
                 if (node.object.name != _this.id)
                     throw new SyntaxError('Invalid member expression');
@@ -154,7 +153,6 @@ export default class WhereTransformer {
                         throw new SyntaxError('Invalid logical expression');
                     }
                     flagChildernAsValid(node);
-                    console.log('node: ' ,node.operator, 'order: ', ++count , '\n');
                 },
                 BinaryExpression(path, left, right) {
                     const { node } = path;
@@ -165,7 +163,6 @@ export default class WhereTransformer {
                     let lhs = node.left;
                     let rhs = node.right;
                     flagChildernAsValid(node);
-                    console.log('node: ', node.operator, 'order: ', ++count, '\n');
                     handleTerminalNode(lhs);
                     handleTerminalNode(rhs);
                 }
