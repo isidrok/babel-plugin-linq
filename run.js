@@ -4,7 +4,7 @@ var linq = require('./dist/index').default;
 var code =`(function (description) {
     const instance = new Context();
     var z = instance.Foo
-        .where((c) => c.description === description && c.id === 12 || c.name === description)
+        .where((c) => c.description === description && c.id === 12 || c.name === long_description)
         .select((c) => c.description === description)
 })("Hello")`;
 var ast = babylon.parse(code);
