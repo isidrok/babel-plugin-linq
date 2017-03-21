@@ -1,16 +1,10 @@
 import traverse from 'babel-traverse';
 import * as t from 'babel-types';
-import VALID from './valid'
 
 export default class WhereTransformer {
     constructor(path, code) {
-        let _params = path.node.params;
-        if (_params.length != 1)
-            throw new SyntaxError('Invalid arrow function');
-        let expressionStart = path.node.start;
-        let expressionEnd = path.node.end;
-        this.expression = code.substring(expressionStart,expressionEnd +1);
-        this.id = _params[0].name;
+        this.expression = code.substring(path.node.start, path.node.end + 1);
+        this.id = path.node.params[0].name;
         this.path = path;
         this.params = [];
     }
@@ -19,6 +13,13 @@ export default class WhereTransformer {
         let variableDeclarator = t.variableDeclarator(t.Identifier('_booleanExpression'), expression);
         let variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
         return variableDeclaration;
+    }
+    buildAllParams() {
+        let paramExpressions = [];
+        this.params.forEach(param => {
+            paramExpressions.push(this.buildParam(param));
+        });
+        return paramExpressions;
     }
     buildParam(param) {
         let memberExpression = t.MemberExpression(
@@ -31,24 +32,17 @@ export default class WhereTransformer {
         let expressionStatement = t.ExpressionStatement(callExpression);
         return expressionStatement;
     }
-    buildExpressionAssignment(_expression) {
+    buildExpressionAssignment() {
         let memberExpression = t.MemberExpression(
             t.Identifier('_booleanExpression'),
             t.Identifier('expression')
         );
-        let expression = t.StringLiteral(_expression);
+        let expression = t.StringLiteral(this.expression);
         let assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
         let expressionStatement = t.ExpressionStatement(assignmentExpression);
         return expressionStatement;
     }
-    buildAllParams() {
-        let paramExpressions = [];
-        this.params.forEach(param => {
-            paramExpressions.push(this.buildParam(param));
-        });
-        return paramExpressions;
-    }
-    buildBlockStatement() {
+    buildFunctionBody() {
         let newStatement = this.buildBoolean();
         let paramExpressions = this.buildAllParams();
         let expressionStatement = this.buildExpressionAssignment(this.expression);
@@ -60,18 +54,9 @@ export default class WhereTransformer {
         let blockStatement = t.blockStatement(code);
         return blockStatement;
     }
-    buildExpression(){
-        let regex;
-        this.params.forEach(param => {
-            let key = Object.keys(param)[0];
-            regex = new RegExp(`([^.|w|d])${param[key]}(?!S)`, 'g');
-            this.expression = this.expression.replace(regex,`$1${key}`);
-        });
-        this.expression = this.expression.replace(/["']/g, "");
-    }
     buildFunction() {
         let functionId = null;
-        let functionBody = this.buildBlockStatement();
+        let functionBody = this.buildFunctionBody();
         let functionParams = [];
         this.params.forEach(param => {
             let key = Object.keys(param)[0];
@@ -102,84 +87,100 @@ export default class WhereTransformer {
                 return t.StringLiteral(param);
         }
     }
-
+    buildExpression() {
+        let regex;
+        this.params.forEach(param => {
+            let key = Object.keys(param)[0];
+            regex = new RegExp(`([^.|w|d|_])${param[key]}(?!S)`, 'g');
+            this.expression = this.expression.replace(regex, `$1${key}`);
+        });
+        this.expression = this.expression.replace(/["']/g, "");
+    }
+    getKey(param) {
+        return Object.keys(param)[0];
+    }
     traverseAST() {
         let paramCounter = 0;
-        let count = 0;
         let _this = this;
 
-        function name() {
+        function generateName() {
             let name = `p${paramCounter}`;
             paramCounter++;
             return name;
         }
 
-        function flagChildernAsValid(node) {
-            node.right[VALID] = true;
-            node.left[VALID] = true;
-        }
-
         function handleTerminalNode(node) {
-            //TODO refactor
             if (t.isMemberExpression(node)) {
-                if (node.object.name != _this.id)
-                    throw new SyntaxError('Invalid member expression');
+                handleMemberExpression();
                 return;
             }
+            let name = generateName();
+            if (t.isIdentifier(node)) handleIdentifier();
+            else handleLiteral();
 
-            let _name = name();
-            if (t.isIdentifier(node)) {
-                _this.params.push({ [_name]: node.name, isIdentifier: true });
-                node.name = _name;
+            function handleMemberExpression() {
+                if (node.object.name != _this.id)
+                    throw new SyntaxError('Invalid member expression');
             }
-            else
-                _this.params.push({ [_name]: node.value }); {
-                node.value = _name;
+            function handleIdentifier(attr) {
+                if (!isRepeated('name'))
+                    _this.params.push({ [name]: node.name, isIdentifier: true });
+            }
+            function handleLiteral() {
+                if (!isRepeated('value'))
+                    _this.params.push({ [name]: node.value });
+            }
+            function isRepeated(prop) {
+                let repeated = false;
+                let key;
+                _this.params.forEach(param => {
+                    key = _this.getKey(param);
+                    if (param[key] === node[prop]) repeated = true;
+                });
+                return repeated;
             }
         }
+
         function isValidLogicalExpression(node) {
             let lhs = node.left;
             let rhs = node.right;
             return (
-            t.isLogicalExpression(lhs) && t.isLogicalExpression(rhs) ||
+                t.isLogicalExpression(lhs) && t.isLogicalExpression(rhs) ||
                 t.isBinaryExpression(lhs) && t.isBinaryExpression(rhs) ||
                 t.isBinaryExpression(lhs) && t.isLogicalExpression(rhs) ||
                 t.isLogicalExpression(lhs) && t.isBinaryExpression(rhs));
         }
+
         function isValidBinaryExpression(node) {
             let lhs = node.left;
             let rhs = node.right;
             return (
-            t.isMemberExpression(lhs) && (t.isIdentifier(rhs) || t.isNumericLiteral(rhs) || t.isStringLiteral(rhs)) ||
+                t.isMemberExpression(lhs) && (t.isIdentifier(rhs) || t.isNumericLiteral(rhs) || t.isStringLiteral(rhs)) ||
                 (t.isIdentifier(lhs) || t.isNumericLiteral(lhs) || t.isStringLiteral(lhs)) && t.isMemberExpression(rhs));
         }
 
         traverse(this.path.node,
             {
-             
+
                 LogicalExpression(path, left, right) {
                     const { node } = path;
-                    if (!node[VALID]) return;
                     if (!isValidLogicalExpression(node)) {
                         throw new SyntaxError('Invalid logical expression');
                     }
-                    flagChildernAsValid(node);
                 },
                 BinaryExpression(path, left, right) {
                     const { node } = path;
-                    if (!node[VALID]) return;
                     if (!isValidBinaryExpression(node)) {
                         throw new SyntaxError('Invalid binary expression');
                     }
                     let lhs = node.left;
                     let rhs = node.right;
-                    flagChildernAsValid(node);
                     handleTerminalNode(lhs);
                     handleTerminalNode(rhs);
                 }
             }, this.path.scope, this.path);
 
-        
+
     }
     run() {
         this.traverseAST();

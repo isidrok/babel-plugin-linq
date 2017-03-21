@@ -14,10 +14,6 @@ var _babelTypes = require('babel-types');
 
 var t = _interopRequireWildcard(_babelTypes);
 
-var _valid = require('./valid');
-
-var _valid2 = _interopRequireDefault(_valid);
-
 function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -30,12 +26,8 @@ var WhereTransformer = function () {
     function WhereTransformer(path, code) {
         _classCallCheck(this, WhereTransformer);
 
-        var _params = path.node.params;
-        if (_params.length != 1) throw new SyntaxError('Invalid arrow function');
-        var expressionStart = path.node.start;
-        var expressionEnd = path.node.end;
-        this.expression = code.substring(expressionStart, expressionEnd + 1);
-        this.id = _params[0].name;
+        this.expression = code.substring(path.node.start, path.node.end + 1);
+        this.id = path.node.params[0].name;
         this.path = path;
         this.params = [];
     }
@@ -49,25 +41,6 @@ var WhereTransformer = function () {
             return variableDeclaration;
         }
     }, {
-        key: 'buildParam',
-        value: function buildParam(param) {
-            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
-            var key = Object.keys(param)[0];
-            var params = [t.StringLiteral(key), t.Identifier(key)];
-            var callExpression = t.CallExpression(memberExpression, params);
-            var expressionStatement = t.ExpressionStatement(callExpression);
-            return expressionStatement;
-        }
-    }, {
-        key: 'buildExpressionAssignment',
-        value: function buildExpressionAssignment(_expression) {
-            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('expression'));
-            var expression = t.StringLiteral(_expression);
-            var assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
-            var expressionStatement = t.ExpressionStatement(assignmentExpression);
-            return expressionStatement;
-        }
-    }, {
         key: 'buildAllParams',
         value: function buildAllParams() {
             var _this2 = this;
@@ -79,8 +52,27 @@ var WhereTransformer = function () {
             return paramExpressions;
         }
     }, {
-        key: 'buildBlockStatement',
-        value: function buildBlockStatement() {
+        key: 'buildParam',
+        value: function buildParam(param) {
+            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
+            var key = Object.keys(param)[0];
+            var params = [t.StringLiteral(key), t.Identifier(key)];
+            var callExpression = t.CallExpression(memberExpression, params);
+            var expressionStatement = t.ExpressionStatement(callExpression);
+            return expressionStatement;
+        }
+    }, {
+        key: 'buildExpressionAssignment',
+        value: function buildExpressionAssignment() {
+            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('expression'));
+            var expression = t.StringLiteral(this.expression);
+            var assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
+            var expressionStatement = t.ExpressionStatement(assignmentExpression);
+            return expressionStatement;
+        }
+    }, {
+        key: 'buildFunctionBody',
+        value: function buildFunctionBody() {
             var newStatement = this.buildBoolean();
             var paramExpressions = this.buildAllParams();
             var expressionStatement = this.buildExpressionAssignment(this.expression);
@@ -93,23 +85,10 @@ var WhereTransformer = function () {
             return blockStatement;
         }
     }, {
-        key: 'buildExpression',
-        value: function buildExpression() {
-            var _this3 = this;
-
-            var regex = void 0;
-            this.params.forEach(function (param) {
-                var key = Object.keys(param)[0];
-                regex = new RegExp('([^.|w|d])' + param[key] + '(?!S)', 'g');
-                _this3.expression = _this3.expression.replace(regex, '$1' + key);
-            });
-            this.expression = this.expression.replace(/["']/g, "");
-        }
-    }, {
         key: 'buildFunction',
         value: function buildFunction() {
             var functionId = null;
-            var functionBody = this.buildBlockStatement();
+            var functionBody = this.buildFunctionBody();
             var functionParams = [];
             this.params.forEach(function (param) {
                 var key = Object.keys(param)[0];
@@ -138,44 +117,71 @@ var WhereTransformer = function () {
             }
         }
     }, {
+        key: 'buildExpression',
+        value: function buildExpression() {
+            var _this3 = this;
+
+            var regex = void 0;
+            this.params.forEach(function (param) {
+                var key = Object.keys(param)[0];
+                regex = new RegExp('([^.|w|d|_])' + param[key] + '(?!S)', 'g');
+                _this3.expression = _this3.expression.replace(regex, '$1' + key);
+            });
+            this.expression = this.expression.replace(/["']/g, "");
+        }
+    }, {
+        key: 'getKey',
+        value: function getKey(param) {
+            return Object.keys(param)[0];
+        }
+    }, {
         key: 'traverseAST',
         value: function traverseAST() {
             var paramCounter = 0;
-            var count = 0;
             var _this = this;
 
-            function name() {
+            function generateName() {
                 var name = 'p' + paramCounter;
                 paramCounter++;
                 return name;
             }
 
-            function flagChildernAsValid(node) {
-                node.right[_valid2.default] = true;
-                node.left[_valid2.default] = true;
-            }
-
             function handleTerminalNode(node) {
                 if (t.isMemberExpression(node)) {
-                    if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
+                    handleMemberExpression();
                     return;
                 }
+                var name = generateName();
+                if (t.isIdentifier(node)) handleIdentifier();else handleLiteral();
 
-                var _name = name();
-                if (t.isIdentifier(node)) {
+                function handleMemberExpression() {
+                    if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
+                }
+                function handleIdentifier(attr) {
                     var _this$params$push;
 
-                    _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, _name, node.name), _defineProperty(_this$params$push, 'isIdentifier', true), _this$params$push));
-                    node.name = _name;
-                } else _this.params.push(_defineProperty({}, _name, node.value));{
-                    node.value = _name;
+                    if (!isRepeated('name')) _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, name, node.name), _defineProperty(_this$params$push, 'isIdentifier', true), _this$params$push));
+                }
+                function handleLiteral() {
+                    if (!isRepeated('value')) _this.params.push(_defineProperty({}, name, node.value));
+                }
+                function isRepeated(prop) {
+                    var repeated = false;
+                    var key = void 0;
+                    _this.params.forEach(function (param) {
+                        key = _this.getKey(param);
+                        if (param[key] === node[prop]) repeated = true;
+                    });
+                    return repeated;
                 }
             }
+
             function isValidLogicalExpression(node) {
                 var lhs = node.left;
                 var rhs = node.right;
                 return t.isLogicalExpression(lhs) && t.isLogicalExpression(rhs) || t.isBinaryExpression(lhs) && t.isBinaryExpression(rhs) || t.isBinaryExpression(lhs) && t.isLogicalExpression(rhs) || t.isLogicalExpression(lhs) && t.isBinaryExpression(rhs);
             }
+
             function isValidBinaryExpression(node) {
                 var lhs = node.left;
                 var rhs = node.right;
@@ -186,22 +192,18 @@ var WhereTransformer = function () {
                 LogicalExpression: function LogicalExpression(path, left, right) {
                     var node = path.node;
 
-                    if (!node[_valid2.default]) return;
                     if (!isValidLogicalExpression(node)) {
                         throw new SyntaxError('Invalid logical expression');
                     }
-                    flagChildernAsValid(node);
                 },
                 BinaryExpression: function BinaryExpression(path, left, right) {
                     var node = path.node;
 
-                    if (!node[_valid2.default]) return;
                     if (!isValidBinaryExpression(node)) {
                         throw new SyntaxError('Invalid binary expression');
                     }
                     var lhs = node.left;
                     var rhs = node.right;
-                    flagChildernAsValid(node);
                     handleTerminalNode(lhs);
                     handleTerminalNode(rhs);
                 }
