@@ -55,7 +55,7 @@ var WhereTransformer = function () {
         key: 'buildParam',
         value: function buildParam(param) {
             var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
-            var key = Object.keys(param)[0];
+            var key = this.getKey(param);
             var params = [t.StringLiteral(key), t.Identifier(key)];
             var callExpression = t.CallExpression(memberExpression, params);
             var expressionStatement = t.ExpressionStatement(callExpression);
@@ -87,11 +87,14 @@ var WhereTransformer = function () {
     }, {
         key: 'buildFunction',
         value: function buildFunction() {
+            var _this3 = this;
+
             var functionId = null;
             var functionBody = this.buildFunctionBody();
             var functionParams = [];
+            var key = void 0;
             this.params.forEach(function (param) {
-                var key = Object.keys(param)[0];
+                key = _this3.getKey(param);
                 functionParams.push(t.Identifier(key));
             });
             var functionExpression = t.functionExpression(functionId, functionParams, functionBody);
@@ -100,32 +103,34 @@ var WhereTransformer = function () {
     }, {
         key: 'buildFunctionCall',
         value: function buildFunctionCall() {
+            var _this4 = this;
+
             var functionExpression = this.buildFunction();
             var callParams = [];
             this.params.forEach(function (param) {
-                var key = Object.keys(param)[0];
-                var _param = void 0;
-                if (param.isIdentifier) _param = t.Identifier(param[key]);else _param = getParam(param[key]);
-                callParams.push(_param);
+                var key = _this4.getKey(param);
+                var arg = parseParam(param, key);
+                callParams.push(arg);
             });
             var callExpression = t.callExpression(functionExpression, callParams);
             return t.expressionStatement(callExpression);
 
-            function getParam(param) {
-                if (typeof param === "number") return t.NumericLiteral(param);
-                if (typeof param === "string") return t.StringLiteral(param);
+            function parseParam(param, key) {
+                if (param.isIdentifier) return t.Identifier(param[key]);
+                if (typeof param[key] === "number") return t.NumericLiteral(param[key]);
+                if (typeof param[key] === "string") return t.StringLiteral(param[key]);
             }
         }
     }, {
         key: 'buildExpression',
         value: function buildExpression() {
-            var _this3 = this;
+            var _this5 = this;
 
             var regex = void 0;
             this.params.forEach(function (param) {
-                var key = Object.keys(param)[0];
+                var key = _this5.getKey(param);
                 regex = new RegExp('([^.|w|d|_])' + param[key] + '(?!S)', 'g');
-                _this3.expression = _this3.expression.replace(regex, '$1' + key);
+                _this5.expression = _this5.expression.replace(regex, '$1' + key);
             });
             this.expression = this.expression.replace(/["']/g, "");
         }
@@ -157,7 +162,7 @@ var WhereTransformer = function () {
                 function handleMemberExpression() {
                     if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
                 }
-                function handleIdentifier(attr) {
+                function handleIdentifier() {
                     var _this$params$push;
 
                     if (!isRepeated('name')) _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, name, node.name), _defineProperty(_this$params$push, 'isIdentifier', true), _this$params$push));

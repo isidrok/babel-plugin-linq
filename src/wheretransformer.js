@@ -26,7 +26,7 @@ export default class WhereTransformer {
             t.Identifier('_booleanExpression'),
             t.Identifier('params')
         );
-        let key = Object.keys(param)[0];
+        let key = this.getKey(param);
         let params = [t.StringLiteral(key), t.Identifier(key)];
         let callExpression = t.CallExpression(memberExpression, params);
         let expressionStatement = t.ExpressionStatement(callExpression);
@@ -58,8 +58,9 @@ export default class WhereTransformer {
         let functionId = null;
         let functionBody = this.buildFunctionBody();
         let functionParams = [];
+        let key;
         this.params.forEach(param => {
-            let key = Object.keys(param)[0];
+            key = this.getKey(param);
             functionParams.push(t.Identifier(key));
         });
         let functionExpression = t.functionExpression(functionId, functionParams, functionBody);
@@ -69,28 +70,26 @@ export default class WhereTransformer {
         let functionExpression = this.buildFunction();
         let callParams = [];
         this.params.forEach(param => {
-            let key = Object.keys(param)[0];
-            let _param
-            if (param.isIdentifier)
-                _param = t.Identifier(param[key]);
-            else
-                _param = getParam(param[key]);
-            callParams.push(_param);
+            let key = this.getKey(param);
+            let arg = parseParam(param,key);
+            callParams.push(arg);
         });
         let callExpression = t.callExpression(functionExpression, callParams);
         return t.expressionStatement(callExpression);
 
-        function getParam(param) {
-            if (typeof param === "number")
-                return t.NumericLiteral(param);
-            if (typeof param === "string")
-                return t.StringLiteral(param);
+        function parseParam(param,key) {
+            if (param.isIdentifier)
+                return t.Identifier(param[key]);
+            if (typeof param[key] === "number")
+                return t.NumericLiteral(param[key]);
+            if (typeof param[key] === "string")
+                return t.StringLiteral(param[key]);
         }
     }
     buildExpression() {
         let regex;
         this.params.forEach(param => {
-            let key = Object.keys(param)[0];
+            let key = this.getKey(param);
             regex = new RegExp(`([^.|w|d|_])${param[key]}(?!S)`, 'g');
             this.expression = this.expression.replace(regex, `$1${key}`);
         });
@@ -122,7 +121,7 @@ export default class WhereTransformer {
                 if (node.object.name != _this.id)
                     throw new SyntaxError('Invalid member expression');
             }
-            function handleIdentifier(attr) {
+            function handleIdentifier() {
                 if (!isRepeated('name'))
                     _this.params.push({ [name]: node.name, isIdentifier: true });
             }
