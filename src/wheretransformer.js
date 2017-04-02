@@ -9,6 +9,7 @@ export default class WhereTransformer {
         this.params = [];
     }
     buildBoolean() {
+        //TODO: change so it builds booleanExpression = {}
         let expression = t.NewExpression(t.Identifier('BooleanExpression'), []);
         let variableDeclarator = t.variableDeclarator(t.Identifier('_booleanExpression'), expression);
         let variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
@@ -22,6 +23,7 @@ export default class WhereTransformer {
         return paramExpressions;
     }
     buildParam(param) {
+        //TODO: change in order to build something like booleanExpression.params[key] = value
         let memberExpression = t.MemberExpression(
             t.Identifier('_booleanExpression'),
             t.Identifier('params')
@@ -33,6 +35,7 @@ export default class WhereTransformer {
         return expressionStatement;
     }
     buildExpressionAssignment() {
+        //TODO: review that this function works correctly with the changes introduced to booleanExpression
         let memberExpression = t.MemberExpression(
             t.Identifier('_booleanExpression'),
             t.Identifier('expression')
