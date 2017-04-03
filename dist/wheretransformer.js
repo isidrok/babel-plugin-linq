@@ -35,8 +35,8 @@ var WhereTransformer = function () {
     _createClass(WhereTransformer, [{
         key: 'buildBoolean',
         value: function buildBoolean() {
-            var expression = t.NewExpression(t.Identifier('BooleanExpression'), []);
-            var variableDeclarator = t.variableDeclarator(t.Identifier('_booleanExpression'), expression);
+            var booleanExpressionObject = t.objectExpression([t.ObjectProperty(t.identifier('params'), t.ObjectExpression([]))]);
+            var variableDeclarator = t.variableDeclarator(t.Identifier('booleanExpression'), booleanExpressionObject);
             var variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
             return variableDeclaration;
         }
@@ -54,17 +54,18 @@ var WhereTransformer = function () {
     }, {
         key: 'buildParam',
         value: function buildParam(param) {
-            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('params'));
             var key = this.getKey(param);
-            var params = [t.StringLiteral(key), t.Identifier(key)];
-            var callExpression = t.CallExpression(memberExpression, params);
-            var expressionStatement = t.ExpressionStatement(callExpression);
+            var innerMemberExpression = t.MemberExpression(t.Identifier('booleanExpression'), t.Identifier('params'));
+            var outherMemberExpression = t.MemberExpression(innerMemberExpression, t.Identifier(key));
+            var identifier = t.Identifier(key);
+            var assignmentExpression = t.assignmentExpression('=', outherMemberExpression, identifier);
+            var expressionStatement = t.ExpressionStatement(assignmentExpression);
             return expressionStatement;
         }
     }, {
         key: 'buildExpressionAssignment',
         value: function buildExpressionAssignment() {
-            var memberExpression = t.MemberExpression(t.Identifier('_booleanExpression'), t.Identifier('expression'));
+            var memberExpression = t.MemberExpression(t.Identifier('booleanExpression'), t.Identifier('expression'));
             var expression = t.StringLiteral(this.expression);
             var assignmentExpression = t.assignmentExpression('=', memberExpression, expression);
             var expressionStatement = t.ExpressionStatement(assignmentExpression);
@@ -76,11 +77,13 @@ var WhereTransformer = function () {
             var newStatement = this.buildBoolean();
             var paramExpressions = this.buildAllParams();
             var expressionStatement = this.buildExpressionAssignment(this.expression);
+            var returnStatement = t.ReturnStatement(t.Identifier('booleanExpression'));
             var code = [newStatement];
             paramExpressions.forEach(function (expression) {
                 code.push(expression);
             });
             code.push(expressionStatement);
+            code.push(returnStatement);
             var blockStatement = t.blockStatement(code);
             return blockStatement;
         }

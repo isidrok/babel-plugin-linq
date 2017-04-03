@@ -9,9 +9,10 @@ export default class WhereTransformer {
         this.params = [];
     }
     buildBoolean() {
-        //TODO: change so it builds booleanExpression = {}
-        let expression = t.NewExpression(t.Identifier('BooleanExpression'), []);
-        let variableDeclarator = t.variableDeclarator(t.Identifier('_booleanExpression'), expression);
+        let booleanExpressionObject = t.objectExpression([
+            t.ObjectProperty(t.identifier('params'), t.ObjectExpression([]))
+            ]);
+        let variableDeclarator = t.variableDeclarator(t.Identifier('booleanExpression'), booleanExpressionObject);
         let variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
         return variableDeclaration;
     }
@@ -23,21 +24,23 @@ export default class WhereTransformer {
         return paramExpressions;
     }
     buildParam(param) {
-        //TODO: change in order to build something like booleanExpression.params[key] = value
-        let memberExpression = t.MemberExpression(
-            t.Identifier('_booleanExpression'),
+        let key = this.getKey(param);
+        let innerMemberExpression = t.MemberExpression(
+            t.Identifier('booleanExpression'),
             t.Identifier('params')
         );
-        let key = this.getKey(param);
-        let params = [t.StringLiteral(key), t.Identifier(key)];
-        let callExpression = t.CallExpression(memberExpression, params);
-        let expressionStatement = t.ExpressionStatement(callExpression);
+        let outherMemberExpression = t.MemberExpression(
+            innerMemberExpression,
+            t.Identifier(key)
+        );
+        let identifier = t.Identifier(key);
+        let assignmentExpression = t.assignmentExpression('=', outherMemberExpression, identifier);
+        let expressionStatement = t.ExpressionStatement(assignmentExpression);
         return expressionStatement;
     }
     buildExpressionAssignment() {
-        //TODO: review that this function works correctly with the changes introduced to booleanExpression
         let memberExpression = t.MemberExpression(
-            t.Identifier('_booleanExpression'),
+            t.Identifier('booleanExpression'),
             t.Identifier('expression')
         );
         let expression = t.StringLiteral(this.expression);
@@ -49,11 +52,13 @@ export default class WhereTransformer {
         let newStatement = this.buildBoolean();
         let paramExpressions = this.buildAllParams();
         let expressionStatement = this.buildExpressionAssignment(this.expression);
+        let returnStatement = t.ReturnStatement(t.Identifier('booleanExpression'));
         let code = [newStatement];
         paramExpressions.forEach(expression => {
             code.push(expression);
         });
-        code.push(expressionStatement)
+        code.push(expressionStatement);
+        code.push(returnStatement);
         let blockStatement = t.blockStatement(code);
         return blockStatement;
     }
@@ -74,13 +79,13 @@ export default class WhereTransformer {
         let callParams = [];
         this.params.forEach(param => {
             let key = this.getKey(param);
-            let arg = parseParam(param,key);
+            let arg = parseParam(param, key);
             callParams.push(arg);
         });
         let callExpression = t.callExpression(functionExpression, callParams);
         return t.expressionStatement(callExpression);
 
-        function parseParam(param,key) {
+        function parseParam(param, key) {
             if (param.isIdentifier)
                 return t.Identifier(param[key]);
             if (typeof param[key] === "number")
