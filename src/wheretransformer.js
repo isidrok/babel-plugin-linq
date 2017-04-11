@@ -1,3 +1,7 @@
+//TODO: maybe we can replace the value of the nodes in the arrow function and
+//then construct the expression using the new body instead of modifying the old expression
+
+//TODO: change the structure to remove the booleanExpression and work with a generic object
 import traverse from 'babel-traverse';
 import * as t from 'babel-types';
 
