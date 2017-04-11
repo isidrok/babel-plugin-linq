@@ -1,4 +1,4 @@
-
+import OrderTransformer from './ordertransformer';
 import WhereTransformer from './wheretransformer';
 import SelectTransformer from './selecttransformer';
 
@@ -16,7 +16,11 @@ export default function ({ types: t }) {
         let parent = getParentName(path);
         let transformers = {
             "where": WhereTransformer,
-            "select" : SelectTransformer
+            "select" : SelectTransformer,
+            "orderBy": OrderTransformer,
+            "orderByDescending": OrderTransformer,
+            "thenBy": OrderTransformer,
+            "thenByDescending": OrderTransformer
         }
         return transformers[parent];
     }

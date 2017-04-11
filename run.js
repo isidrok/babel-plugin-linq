@@ -7,7 +7,8 @@ var linq = require('./dist/index').default;
 //         .where((c) => c.description === description && c.id === 12 || c.name === long_description)
 //         .select((c) => c.description === description)
 // })("Hello")`;
-var code = `select(c=>({id1,name2,foo:{id3,name4},bar:[{id5,name6}]}))`;
+// var code = `select(c=>({id1,name2,foo:{id3,name4},bar:[{id5,name6}]}))`;
+var code = `orderBy(c=>c.id)`;
 var ast = babylon.parse(code);
 var out = babel.transformFromAst(ast,code, {
     plugins: [linq]

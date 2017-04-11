@@ -20,7 +20,11 @@ exports.default = function (_ref) {
         var parent = getParentName(path);
         var transformers = {
             "where": _wheretransformer2.default,
-            "select": _selecttransformer2.default
+            "select": _selecttransformer2.default,
+            "orderBy": _ordertransformer2.default,
+            "orderByDescending": _ordertransformer2.default,
+            "thenBy": _ordertransformer2.default,
+            "thenByDescending": _ordertransformer2.default
         };
         return transformers[parent];
     }
@@ -39,6 +43,10 @@ exports.default = function (_ref) {
         }
     };
 };
+
+var _ordertransformer = require('./ordertransformer');
+
+var _ordertransformer2 = _interopRequireDefault(_ordertransformer);
 
 var _wheretransformer = require('./wheretransformer');
 
