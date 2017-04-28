@@ -126,7 +126,7 @@ export default class WhereTransformer {
             else handleLiteral();
 
             function handleMemberExpression() {
-                if (node.object.name != _this.id)
+                if (t.isIdentifier(node.object) && node.object.name != _this.id)
                     throw new SyntaxError('Invalid member expression');
             }
             function handleIdentifier() {

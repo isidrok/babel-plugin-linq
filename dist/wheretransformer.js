@@ -163,7 +163,7 @@ var WhereTransformer = function () {
                 if (t.isIdentifier(node)) handleIdentifier();else handleLiteral();
 
                 function handleMemberExpression() {
-                    if (node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
+                    if (t.isIdentifier(node.object) && node.object.name != _this.id) throw new SyntaxError('Invalid member expression');
                 }
                 function handleIdentifier() {
                     var _this$params$push;
