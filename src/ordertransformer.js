@@ -1,3 +1,5 @@
+//TODO: if the identifier of the arrow function is different from the one of the body then
+// the expression is not valid
 import * as t from 'babel-types';
 export default class SelectTransformer {
     constructor(path, code) {
