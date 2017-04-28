@@ -30,7 +30,7 @@ var WhereTransformer = function () {
     function WhereTransformer(path, code) {
         _classCallCheck(this, WhereTransformer);
 
-        this.expression = code.substring(path.node.start, path.node.end + 1);
+        this.expression = code.substring(path.node.start, path.node.end);
         this.id = path.node.params[0].name;
         this.path = path;
         this.params = [];

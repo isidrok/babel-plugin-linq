@@ -7,7 +7,7 @@ import * as t from 'babel-types';
 
 export default class WhereTransformer {
     constructor(path, code) {
-        this.expression = code.substring(path.node.start, path.node.end + 1);
+        this.expression = code.substring(path.node.start, path.node.end);
         this.id = path.node.params[0].name;
         this.path = path;
         this.params = [];
