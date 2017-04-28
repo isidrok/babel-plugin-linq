@@ -8,8 +8,8 @@ var linq = require('./dist/index').default;
 //         .select((c) => c.description === description)
 // })("Hello")`;
 // var code = `select(c=>({id1,name2,foo:{id3,name4},bar:[{id5,name6}]}))`;
-// var code = `orderBy(c=>c.id)`;
-var code = 'where(c => c.id === 10 || c.bar.id === id)';
+var code = `orderBy(c=>c.id)`;
+// var code = 'where(c => c.id === 10 || c.bar.id === id)';
 
 var ast = babylon.parse(code);
 var out = babel.transformFromAst(ast,code, {

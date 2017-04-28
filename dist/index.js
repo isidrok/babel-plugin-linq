@@ -8,6 +8,7 @@ exports.default = function (_ref) {
     var t = _ref.types;
 
 
+    //TODO: create a validation function that works for select, where and order
     function isValidArrowFunction(node) {
         return node.params.length === 1 && (t.isLogicalExpression(node.body) || t.isBinaryExpression(node.body));
     }
@@ -38,7 +39,6 @@ exports.default = function (_ref) {
                 // if (!isValidArrowFunction(node))
                 //     throw new SyntaxError('Invalid arrow function expression');
                 path.replaceWith(new Transformer(path, state.file.code).run());
-                //new Transformer(path, state.file.code).run();
             }
         }
     };
