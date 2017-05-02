@@ -32,7 +32,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  *  expression: body of the Arrow function replacing the nodes that
  *  are not a memberExpression by a generated parameter.
  *
- * For example, where(c => c.description === 'hello' || c.bar.id === 10)
+ * For example, where(c => c.name === 'hello' || c.bar.id === 10)
  * Outputs:
  * where(function (p0, p1) {
  *  let booleanExpression = {
@@ -40,7 +40,7 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  *  };
  *  booleanExpression.params.p0 = p0;
  *  booleanExpression.params.p1 = p1;
- *  booleanExpression.expression = 'c => c.description === p0 || c.bar.id === p1';
+ *  booleanExpression.expression = 'c => c.name === p0 || c.bar.id === p1';
  *  return booleanExpression;
  * }('hello', 10));
  * @export
@@ -118,6 +118,7 @@ var WhereTransformer = function () {
       var expressionStatement = t.expressionStatement(assignmentExpression);
       return expressionStatement;
     }
+
     /**
      * Assigns the where expression, as a string, to
      * the boolean expression object, whith the form:
@@ -163,6 +164,7 @@ var WhereTransformer = function () {
       var blockStatement = t.blockStatement(code);
       return blockStatement;
     }
+
     /**
      * Creates an annonymous function whose body is
      * the one made in the buildFunctionBody() method
@@ -181,9 +183,8 @@ var WhereTransformer = function () {
       var functionId = null;
       var functionBody = this.buildFunctionBody();
       var functionParams = [];
-      var key = void 0;
       this.params.forEach(function (param) {
-        key = _this3.getKey(param);
+        var key = _this3.getKey(param);
         functionParams.push(t.identifier(key));
       });
       var functionExpression = t.functionExpression(functionId, functionParams, functionBody);
@@ -223,13 +224,17 @@ var WhereTransformer = function () {
        * @return {object} appropiate parameter object
        */
       function parseParam(param, key) {
-        if (param.isIdentifier) return t.identifier(param[key]);
-        if (typeof param[key] === 'number') return t.numericLiteral(param[key]);
-        if (typeof param[key] === 'string') return t.stringLiteral(param[key]);
+        if (param.type === 'Identifier') return t.identifier(param[key]);
+        if (param.type === 'NumericLiteral') return t.numericLiteral(param[key]);
+        if (param.type === 'StringLiteral') return t.stringLiteral(param[key]);
       }
     }
 
     /**
+     * TODO: this way of building the expression seems
+     * error prone and there may be edge cases where
+     * it doesn't work propery.There may be a better solution...
+     *
      * Builds the expression of the where body
      * using as a base the original expression and
      * replacing the attributes by its mapping.
@@ -243,10 +248,36 @@ var WhereTransformer = function () {
 
       this.params.forEach(function (param) {
         var key = _this5.getKey(param);
-        var regex = param.isIdentifier ? new RegExp('([^.|w|d|_|\'|"|`])' + param[key] + '(?!S)', 'g') : new RegExp('([^.|w|d|_])' + param[key] + '(?!S)', 'g');
+        var expression = param.type === 'StringLiteral'
+        /**
+         * Match the property name that is not preceded by
+         * . | letter | number | _ | -
+         * so if the property is description it doesn´t match
+         * with longdescription nor long-description nor c.description...
+         * For the matching it must also find a sign that denotes that
+         * it is a string, ' | "
+         * so "description" is not matched with description.
+         */
+        ? '([^.|w|d|_|-]\'|")' + param[key] + '(?!S)'
+        /**
+         * Similar to the previous regex but it wont't match
+         * strings, so ' and " are added to the no-matching list.
+         */
+        : '([^.|w|d|_|\'|"])' + param[key] + '(?!S)';
+        var regex = new RegExp(expression, 'g');
+        /**
+         * $1 is added because in this case:
+         * c.id===10, the output would be c.id==p0
+         * So in this case we need to add the previous
+         * character.
+         * In the case c.id === 10 there is no problem.
+         */
         _this5.expression = _this5.expression.replace(regex, '$1' + key);
       });
-      this.expression = this.expression.replace(/['']/g, '');
+      /**
+       * Erase the quotation marks that are kept when replacing strings.
+       */
+      this.expression = this.expression.replace(/[''|""]/g, '');
     }
   }, {
     key: 'getKey',
@@ -296,24 +327,31 @@ var WhereTransformer = function () {
           return;
         }
         var name = generateName();
-        var isIdentifier = t.isIdentifier(node);
-        var prop = isIdentifier ? node.name : node.value;
-        if (!isRepeated(prop)) _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, name, prop), _defineProperty(_this$params$push, 'isIdentifier', isIdentifier), _this$params$push));
+        var prop = t.isIdentifier(node) ? node.name : node.value;
+        if (!isRepeated(prop)) _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, name, prop), _defineProperty(_this$params$push, 'type', node.type), _this$params$push));
 
         function isRepeated() {
           return _this.params.some(function (param) {
-            return param[_this.getKey(param)] === prop && param.isIdentifier === isIdentifier;
+            return param[_this.getKey(param)] === prop && param.type === node.type;
           });
         }
       }
 
       (0, _babelTraverse2.default)(this.path.node, {
-        LogicalExpression: function LogicalExpression(path, left, right) {
+        LogicalExpression: function LogicalExpression(path) {
           var node = path.node;
 
           _check.check.isValidLogicalExpression(node);
         },
-        BinaryExpression: function BinaryExpression(path, left, right) {
+
+
+        /**
+         * Handles the nodes of the binary
+         * expression, the ones that contains
+         * the parameters for the where expression.
+         * @param {any} path
+         */
+        BinaryExpression: function BinaryExpression(path) {
           var node = path.node;
 
           _check.check.isValidBinaryExpression(node);

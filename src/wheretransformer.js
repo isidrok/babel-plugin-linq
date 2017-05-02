@@ -2,7 +2,6 @@ import traverse from 'babel-traverse';
 import * as t from 'babel-types';
 import { check } from './check';
 
-
 /**
  * Trasforms the body of a where expression into an
  * autoexecutable function that returns an object with
@@ -11,7 +10,7 @@ import { check } from './check';
  *  expression: body of the Arrow function replacing the nodes that
  *  are not a memberExpression by a generated parameter.
  *
- * For example, where(c => c.description === 'hello' || c.bar.id === 10)
+ * For example, where(c => c.name === 'hello' || c.bar.id === 10)
  * Outputs:
  * where(function (p0, p1) {
  *  let booleanExpression = {
@@ -19,7 +18,7 @@ import { check } from './check';
  *  };
  *  booleanExpression.params.p0 = p0;
  *  booleanExpression.params.p1 = p1;
- *  booleanExpression.expression = 'c => c.description === p0 || c.bar.id === p1';
+ *  booleanExpression.expression = 'c => c.name === p0 || c.bar.id === p1';
  *  return booleanExpression;
  * }('hello', 10));
  * @export
@@ -104,6 +103,7 @@ export default class WhereTransformer {
     let expressionStatement = t.expressionStatement(assignmentExpression);
     return expressionStatement;
   }
+
   /**
    * Assigns the where expression, as a string, to
    * the boolean expression object, whith the form:
@@ -150,6 +150,7 @@ export default class WhereTransformer {
     let blockStatement = t.blockStatement(code);
     return blockStatement;
   }
+
   /**
    * Creates an annonymous function whose body is
    * the one made in the buildFunctionBody() method
@@ -163,9 +164,8 @@ export default class WhereTransformer {
     let functionId = null;
     let functionBody = this.buildFunctionBody();
     let functionParams = [];
-    let key;
     this.params.forEach(param => {
-      key = this.getKey(param);
+      let key = this.getKey(param);
       functionParams.push(t.identifier(key));
     });
     let functionExpression = t.functionExpression(
@@ -204,16 +204,20 @@ export default class WhereTransformer {
      * @return {object} appropiate parameter object
      */
     function parseParam(param, key) {
-      if (param.isIdentifier)
+      if (param.type === 'Identifier')
         return t.identifier(param[key]);
-      if (typeof param[key] === 'number')
+      if (param.type === 'NumericLiteral')
         return t.numericLiteral(param[key]);
-      if (typeof param[key] === 'string')
+      if (param.type === 'StringLiteral')
         return t.stringLiteral(param[key]);
     }
   }
 
   /**
+   * TODO: this way of building the expression seems
+   * error prone and there may be edge cases where
+   * it doesn't work propery.There may be a better solution...
+   *
    * Builds the expression of the where body
    * using as a base the original expression and
    * replacing the attributes by its mapping.
@@ -222,12 +226,36 @@ export default class WhereTransformer {
   buildExpression() {
     this.params.forEach(param => {
       let key = this.getKey(param);
-      let regex = param.isIdentifier
-        ? new RegExp(`([^.|w|d|_|'|"|\`])${param[key]}(?!S)`, 'g')
-        : new RegExp(`([^.|w|d|_]')${param[key]}(?!S)`, 'g');
+      let expression = param.type === 'StringLiteral'
+        /**
+         * Match the property name that is not preceded by
+         * . | letter | number | _ | -
+         * so if the property is description it doesn´t match
+         * with longdescription nor long-description nor c.description...
+         * For the matching it must also find a sign that denotes that
+         * it is a string, ' | "
+         * so "description" is not matched with description.
+         */
+        ? `([^.|w|d|_|-]'|")${param[key]}(?!S)`
+        /**
+         * Similar to the previous regex but it wont't match
+         * strings, so ' and " are added to the no-matching list.
+         */
+        : `([^.|w|d|_|'|"])${param[key]}(?!S)`;
+      let regex = new RegExp(expression, 'g');
+      /**
+       * $1 is added because in this case:
+       * c.id===10, the output would be c.id==p0
+       * So in this case we need to add the previous
+       * character.
+       * In the case c.id === 10 there is no problem.
+       */
       this.expression = this.expression.replace(regex, `$1${key}`);
     });
-    this.expression = this.expression.replace(/['']/g, '');
+    /**
+     * Erase the quotation marks that are kept when replacing strings.
+     */
+    this.expression = this.expression.replace(/[''|""]/g, '');
   }
   getKey(param) {
     return Object.keys(param)[0];
@@ -270,27 +298,32 @@ export default class WhereTransformer {
         return;
       }
       let name = generateName();
-      let isIdentifier = t.isIdentifier(node);
-      let prop = isIdentifier ? node.name : node.value;
+      let prop = t.isIdentifier(node) ? node.name : node.value;
       if (!isRepeated(prop))
-        _this.params.push({ [name]: prop, isIdentifier: isIdentifier });
+        _this.params.push({ [name]: prop, type: node.type });
 
       function isRepeated() {
         return _this.params.some(param => {
           return param[_this.getKey(param)] === prop &&
-            param.isIdentifier === isIdentifier;
+            param.type === node.type;
         });
       }
     }
 
     traverse(this.path.node,
       {
-
-        LogicalExpression(path, left, right) {
+        LogicalExpression(path) {
           const { node } = path;
           check.isValidLogicalExpression(node);
         },
-        BinaryExpression(path, left, right) {
+
+        /**
+         * Handles the nodes of the binary
+         * expression, the ones that contains
+         * the parameters for the where expression.
+         * @param {any} path
+         */
+        BinaryExpression(path) {
           const { node } = path;
           check.isValidBinaryExpression(node);
           let lhs = node.left;
