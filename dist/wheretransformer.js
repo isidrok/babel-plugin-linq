@@ -57,6 +57,16 @@ var WhereTransformer = function () {
     this.params = [];
   }
 
+  /**
+   * Declares an object called booleanExpression
+   * with a property called params that is an
+   * empty object.
+   * @return {object} booleanExpression
+   *
+   * @memberOf WhereTransformer
+   */
+
+
   _createClass(WhereTransformer, [{
     key: 'buildBoolean',
     value: function buildBoolean() {
@@ -65,6 +75,17 @@ var WhereTransformer = function () {
       var variableDeclaration = t.variableDeclaration('let', [variableDeclarator]);
       return variableDeclaration;
     }
+
+    /**
+     * Creates an array whose values are
+     * expressionStatements that assign the
+     * different params found in the visitor to
+     * the params property of the booleanExpression.
+     * @return {array} parameters array
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildAllParams',
     value: function buildAllParams() {
@@ -76,6 +97,16 @@ var WhereTransformer = function () {
       });
       return paramExpressions;
     }
+
+    /**
+     * Creates a parameter assignment with the form
+     * booleanExpression.params.p0 = p0;
+     * @param {any} param
+     * @return {object} expressionStatement
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildParam',
     value: function buildParam(param) {
@@ -87,6 +118,15 @@ var WhereTransformer = function () {
       var expressionStatement = t.expressionStatement(assignmentExpression);
       return expressionStatement;
     }
+    /**
+     * Assigns the where expression, as a string, to
+     * the boolean expression object, whith the form:
+     * booleanExpression.expression = 'c => c.id === p0'
+     * @return {object} expression asignment
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildExpressionAssignment',
     value: function buildExpressionAssignment() {
@@ -96,12 +136,23 @@ var WhereTransformer = function () {
       var expressionStatement = t.expressionStatement(assignmentExpression);
       return expressionStatement;
     }
+
+    /**
+     * Creates the body of the function that will be inserted
+     * into the where expression, will insert the booleanExpression
+     * declaration, the expression assignment, the params assignments
+     * and the return statement.
+     * @return {object} function body
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildFunctionBody',
     value: function buildFunctionBody() {
       var newStatement = this.buildBoolean();
       var paramExpressions = this.buildAllParams();
-      var expressionStatement = this.buildExpressionAssignment(this.expression);
+      var expressionStatement = this.buildExpressionAssignment();
       var returnStatement = t.returnStatement(t.identifier('booleanExpression'));
       var code = [newStatement];
       paramExpressions.forEach(function (expression) {
@@ -112,6 +163,16 @@ var WhereTransformer = function () {
       var blockStatement = t.blockStatement(code);
       return blockStatement;
     }
+    /**
+     * Creates an annonymous function whose body is
+     * the one made in the buildFunctionBody() method
+     * and sets the alias of the attributes as its
+     * call parameters.
+     * @return {object} annonymous function
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildFunction',
     value: function buildFunction() {
@@ -128,6 +189,16 @@ var WhereTransformer = function () {
       var functionExpression = t.functionExpression(functionId, functionParams, functionBody);
       return functionExpression;
     }
+
+    /**
+     * Builds the function call to the previous
+     * annonymous function with a real value
+     * for its parameters.
+     * @return {object} function call
+     *
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildFunctionCall',
     value: function buildFunctionCall() {
@@ -143,21 +214,36 @@ var WhereTransformer = function () {
       var callExpression = t.callExpression(functionExpression, callParams);
       return t.expressionStatement(callExpression);
 
+      /**
+       * Depending on the type of the parameter
+       * the arguments of the function call have
+       * a different type.
+       * @param {any} param
+       * @param {any} key
+       * @return {object} appropiate parameter object
+       */
       function parseParam(param, key) {
         if (param.isIdentifier) return t.identifier(param[key]);
         if (typeof param[key] === 'number') return t.numericLiteral(param[key]);
         if (typeof param[key] === 'string') return t.stringLiteral(param[key]);
       }
     }
+
+    /**
+     * Builds the expression of the where body
+     * using as a base the original expression and
+     * replacing the attributes by its mapping.
+     * @memberOf WhereTransformer
+     */
+
   }, {
     key: 'buildExpression',
     value: function buildExpression() {
       var _this5 = this;
 
-      var regex = void 0;
       this.params.forEach(function (param) {
         var key = _this5.getKey(param);
-        regex = new RegExp('([^.|w|d|_])' + param[key] + '(?!S)', 'g');
+        var regex = param.isIdentifier ? new RegExp('([^.|w|d|_|\'|"|`])' + param[key] + '(?!S)', 'g') : new RegExp('([^.|w|d|_])' + param[key] + '(?!S)', 'g');
         _this5.expression = _this5.expression.replace(regex, '$1' + key);
       });
       this.expression = this.expression.replace(/['']/g, '');
@@ -181,13 +267,27 @@ var WhereTransformer = function () {
     value: function traverseAST() {
       var paramCounter = 0;
       var _this = this;
-
+      /**
+       * Generates a name for a parameter
+       * appending a counter to a prefix,
+       * that name will be used for the mapping.
+       * @return {string} param name
+       */
       function generateName() {
         var prefix = 'p';
-        var name = prefix + paramCounter++;
-        // paramCounter++;
-        return name;
+        return prefix + paramCounter++;
       }
+      /**
+       * Handles the sides of a binaryExpression.
+       * If it is a memberExpression checks that it
+       * is a valid one and then returns.
+       * Otherwise generates a name for the property
+       * and if there is not a parameter in the params array
+       * with the same name already pushes an object with a property
+       * being the generated name that stores the real name and
+       * a boolean that sais if the property is an identifier.
+       * @param {any} node
+       */
       function handleTerminalNode(node) {
         var _this$params$push;
 
@@ -199,9 +299,10 @@ var WhereTransformer = function () {
         var isIdentifier = t.isIdentifier(node);
         var prop = isIdentifier ? node.name : node.value;
         if (!isRepeated(prop)) _this.params.push((_this$params$push = {}, _defineProperty(_this$params$push, name, prop), _defineProperty(_this$params$push, 'isIdentifier', isIdentifier), _this$params$push));
-        function isRepeated(prop) {
+
+        function isRepeated() {
           return _this.params.some(function (param) {
-            return param[_this.getKey(param)] === prop;
+            return param[_this.getKey(param)] === prop && param.isIdentifier === isIdentifier;
           });
         }
       }
