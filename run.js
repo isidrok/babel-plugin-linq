@@ -1,3 +1,4 @@
+/*eslint-disable */
 var babel = require('babel-core');
 var babylon = require('babylon');
 var linq = require('./dist/index').default;
@@ -7,9 +8,9 @@ var linq = require('./dist/index').default;
 //         .where((c) => c.description === description && c.id === 12 || c.name === long_description)
 //         .select((c) => c.description === description)
 // })("Hello")`;
-// var code = `select(c=>({id1,name2,foo:{id3,name4},bar:[{id5,name6}]}))`;
-var code = `orderBy(c=>c.id)`;
-// var code = 'where(c => c.id === 10 || c.bar.id === id)';
+// var code = `select(c=>({id, foo:{description}}))`;
+// var code = `orderBy(c=>c.id)`;
+var code = `where(c => c.description === 'hello' || c.bar.id === 10)`;
 
 var ast = babylon.parse(code);
 var out = babel.transformFromAst(ast,code, {
